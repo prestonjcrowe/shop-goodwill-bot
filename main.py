@@ -7,17 +7,17 @@ import urllib
 import twitter
 import time
 import os
+import pytz
 from unidecode import unidecode
 from bs4 import BeautifulSoup
 from datetime import datetime
 from datetime import timedelta 
 
+SGW_TIMEZONE = pytz.timezone('America/Los_Angeles')
 INTERVAL = timedelta(minutes=5)      # frequency of polling
 TWEET_BOUNDS= [INTERVAL, INTERVAL*2] # tweet when remaining time within bounds
 PRODUCTS = {
-    "thinkpad" : 40,
     "gamecube controller" : 20,
-    "vintage" : 20
 }
 API = twitter.Api(consumer_key=os.environ['twitter_api_key'],
                   consumer_secret=os.environ['twitter_api_secret'],
@@ -48,8 +48,8 @@ def get_results(term, lim):
         listing = product.find('div', {'class' : 'title' }).text.strip().split('\n')[0].strip()
 
         ends = product.select('div.timer.countdown-classic.product-countdown')[0]['data-countdown']
-        end_date = datetime.strptime(ends, '%m/%d/%Y %I:%M:%S %p')
-        durr = end_date - datetime.now() 
+        end_date = SGW_TIMEZONE.localize(datetime.strptime(ends, '%m/%d/%Y %I:%M:%S %p'))
+        durr = end_date - datetime.now(SGW_TIMEZONE)
         listing = unidecode(listing)
 
         print_listing(price, durr, listing, lim)
