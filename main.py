@@ -1,7 +1,7 @@
 # For a mapping of terms to max prices, search shopgoodwill.com for each term
-# and tweet each listing that is within the notifcation bounds and is below
-# the maximum price.
-
+# and send an email for each listing that is within the notifcation bounds and
+# below its maximum price.
+import smtplib
 import requests
 import urllib
 import time
@@ -13,11 +13,10 @@ from datetime import datetime
 from datetime import timedelta 
 from email.mime.text import MIMEText
 import email.utils
-import smtplib
 
 SGW_TIMEZONE = pytz.timezone('America/Los_Angeles')
-INTERVAL = timedelta(minutes=30)      # frequency of polling
-NOTIFY_BOUND= [INTERVAL, INTERVAL*2] # tweet when remaining time within bounds
+INTERVAL = timedelta(minutes=20)      # frequency of polling
+NOTIFY_BOUND= [INTERVAL, INTERVAL*2]  # tweet when remaining time within bounds
 EMAIL = os.environ['SENDMAIL_USERNAME']
 PASSWORD = os.environ['SENDMAIL_PASSWORD']
 
@@ -31,6 +30,7 @@ def main():
         get_results(product, PRODUCTS[product])
 
 def get_results(term, lim):
+    print('Looking for {}...'.format(term))
     url = ('https://www.shopgoodwill.com/Listings?st={}'.format(urllib.quote(term)) +
            '&sg=&c=&s=&lp=0&hp=999999&sbn=false&spo=false&snpo=f' +
            'alse&socs=false&sd=false&sca=false&caed=11/14/2018&c' +
@@ -55,8 +55,8 @@ def get_results(term, lim):
 
         if (durr > NOTIFY_BOUND[0] and durr < NOTIFY_BOUND[1]):
             if price <= lim:
-                send_email(price, listing, url, durr)
                 print_listing(price, listing, durr, lim)
+                send_email(price, listing, url, durr)
 
 def print_listing(price, listing, durr, lim):
     print('{: >10} | {: >22} | {: >20}'.format(price, durr, listing))
