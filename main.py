@@ -4,7 +4,6 @@
 
 import requests
 import urllib
-import twitter
 import time
 import os
 import pytz
@@ -12,25 +11,26 @@ from unidecode import unidecode
 from bs4 import BeautifulSoup
 from datetime import datetime
 from datetime import timedelta 
+from email.mime.text import MIMEText
+import email.utils
+import smtplib
 
 SGW_TIMEZONE = pytz.timezone('America/Los_Angeles')
-INTERVAL = timedelta(minutes=5)      # frequency of polling
-TWEET_BOUNDS= [INTERVAL, INTERVAL*2] # tweet when remaining time within bounds
+INTERVAL = timedelta(minutes=1)      # frequency of polling
+NOTIFY_BOUND= [INTERVAL, INTERVAL*2] # tweet when remaining time within bounds
+EMAIL = os.environ['SENDMAIL_USERNAME']
+PASSWORD = os.environ['SENDMAIL_PASSWORD']
+
 PRODUCTS = {
     "gamecube controller" : 20,
-    "vintage" : 10
+    "thinkpad" : 20
 }
-API = twitter.Api(consumer_key=os.environ['twitter_api_key'],
-                  consumer_secret=os.environ['twitter_api_secret'],
-                  access_token_key=os.environ['twitter_access_key'],
-                  access_token_secret=os.environ['twitter_access_secret'])
 
 def main():
     for product in PRODUCTS:
         get_results(product, PRODUCTS[product])
 
 def get_results(term, lim):
-    print('Results for: {}'.format(term))
     url = ('https://www.shopgoodwill.com/Listings?st={}'.format(urllib.quote(term)) +
            '&sg=&c=&s=&lp=0&hp=999999&sbn=false&spo=false&snpo=f' +
            'alse&socs=false&sd=false&sca=false&caed=11/14/2018&c' +
@@ -52,31 +52,28 @@ def get_results(term, lim):
         durr = end_date - datetime.now(SGW_TIMEZONE)
         listing = unidecode(listing)
         price = float(price)
-        print_listing(price, durr, listing, lim)
+        print_listing(price, listing, durr, lim)
 
-        if durr > TWEET_BOUNDS[0] and durr < TWEET_BOUNDS[1] and price<= lim:
-            tweet_listing(price, durr, listing, url)
-            print("Notifcation sent!")
+        if (durr > NOTIFY_BOUND[0] and durr < NOTIFY_BOUND[1]):
+            if price <= lim:
+                send_email(price, listing, url, durr)
+                print_listing(price, listing, durr, lim)
 
-def print_listing(price, durr, listing, lim):
-    if price <= lim and durr <= TWEET_BOUNDS[1]:
-        green('{: >10} | {: >22} | {: >20}'.format(price, durr, listing))
-    elif price <= lim:
-        warning('{: >10} | {: >22} | {: >20}'.format(price, durr, listing))
+def print_listing(price, listing, durr, lim):
+    print('{: >10} | {: >22} | {: >20}'.format(price, durr, listing))
 
-def green(s):
-    print('{}{}{}'.format('\033[92m', s, '\033[0m'))
+def send_email(price, listing, url, durr):
+    server = smtplib.SMTP_SSL('smtp.gmail.com', 465) 
+    server.ehlo()  
+    server.login(EMAIL,PASSWORD)
 
-def warning(s):
-    print('{}{}{}'.format('\033[91m', s, '\033[0m'))
+    msg = MIMEText(url + '\n' + str(durr) + 'remaining')
+    msg['To'] = email.utils.formataddr(('Wiener Boy', EMAIL))
+    msg['From'] = email.utils.formataddr(('GOODWILL_BOT', EMAIL))
+    msg['Subject'] = '${} | {}'.format(price, listing)
 
-def tweet_listing(price, durr, listing,url):
-    try:
-        msg = '${} | {} | {} remaining\n{}'.format(price, listing, durr, url)
-        API.PostDirectMessage(msg,user_id=803661440)
-    except Exception as e:
-        print('Could not post tweet - {}'.format(e))
-    time.sleep(5)
+    server.sendmail(EMAIL, EMAIL, msg.as_string())
+    server.quit()
 
 if __name__ == '__main__':
     main()
